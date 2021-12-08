@@ -2,7 +2,7 @@ from __future__ import print_function
 import os.path
 import base64
 import pickle
-from datetime import datetime, date
+from datetime import datetime
 
 from googleapiclient.errors import HttpError
 from googleapiclient.discovery import build
@@ -11,8 +11,9 @@ from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 
 from censys.asm import Events, HostsAssets
-from censys.common.exceptions import CensysHostNotFoundException
+#from censys.common.exceptions import CensysHostNotFoundException
 
+import csv
 import mimetypes
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -54,7 +55,6 @@ def get_gmail_service():
     # created automatically when the authorization flow completes for the first
     # time.
 
-    print(os.path.abspath('token.json'))
     if os.path.exists('token.json'):
         creds = Credentials.from_authorized_user_file('token.json', SCOPES)
     # If there are no (valid) credentials available, let the user log in.
@@ -119,22 +119,23 @@ def create_message_with_attachment(sender, to, subject, message_text, file):
       content_type = 'application/octet-stream'
     main_type, sub_type = content_type.split('/', 1)
     if main_type == 'text':
-      fp = open(file, 'rb')
+      fp = open(file, 'r')
       msg = MIMEText(fp.read(), _subtype=sub_type)
       fp.close()
     elif main_type == 'image':
-      fp = open(file, 'rb')
+      fp = open(file, 'r')
       msg = MIMEImage(fp.read(), _subtype=sub_type)
       fp.close()
     elif main_type == 'audio':
-      fp = open(file, 'rb')
+      fp = open(file, 'r')
       msg = MIMEAudio(fp.read(), _subtype=sub_type)
       fp.close()
     else:
-      fp = open(file, 'rb')
+      fp = open(file, 'r')
       msg = MIMEBase(main_type, sub_type)
       msg.set_payload(fp.read())
       fp.close()
+
     filename = os.path.basename(file)
     msg.add_header('Content-Disposition', 'attachment', filename=filename)
     message.attach(msg)
@@ -181,25 +182,25 @@ def get_host_risks():
   events = e.get_events(cursor)
   save_lastrun()
 
-  host_risks = {}
+  host_risks = []
   for event in events:
     # only show logbook events with the 'add' tag
     if event["operation"] == "ADD":
-        print(event)
-        host_risks[event["entity"]["ipAddress"]] = event["data"]["title"]
-        # try:
-        #     # enrich the data of this host_risk with more data from the host itself
-        #     host = h.get_asset_by_id(event["entity"]["ipAddress"])
-        #     print(host)
-        # except CensysHostNotFoundException:
-        #     pass
+        #print(event)
+        host_risk = {}
+        host_risk["timestamp"] = event["timestamp"]
+        host_risk["ip_address"] = event["entity"]["ipAddress"]
+        host_risk["risk_title"] = event["data"]["title"]
+        host_risks.append(host_risk)
+
   return host_risks
 
 def build_csv(dict):
-  with open('host-risks.csv', 'w') as f:
-      for key in dict.keys():
-        f.write("%s,%s\n"%(key,dict[key]))
-      return ('host-risks.csv', f.read(), 'text/csv')
+    with open('host-risks.csv', 'w') as csvfile:
+      writer = csv.DictWriter(csvfile, fieldnames=["timestamp", "ip_address", "risk_title"])
+      writer.writeheader()
+      writer.writerows(dict)
+
 
 # --- main thread ---
 
@@ -217,7 +218,6 @@ if __name__ == '__main__':
     # build the csv from the host risks dict
     risks_csv = build_csv(host_risks)
 
-
     service = get_gmail_service()
 
     # get the google profile of the user that gave us their permission to send emails on their behalf
@@ -225,8 +225,8 @@ if __name__ == '__main__':
     print ('Email we will be sending from: %s' % profile['emailAddress'])
 
     for recipient in MAIL_RECIPIENTS:
-        message = create_message(profile['emailAddress'], recipient, MAIL_SUBJECT, MAIL_BODY)
-        message = create_message_with_attachment(profile['emailAddress'], recipient, MAIL_SUBJECT, MAIL_BODY, risks_csv)
+        #message = create_message(profile['emailAddress'], recipient, MAIL_SUBJECT, MAIL_BODY)
+        message = create_message_with_attachment(profile['emailAddress'], recipient, MAIL_SUBJECT, MAIL_BODY, 'host-risks.csv')
         #print ('Message: %s' % message)
         send_message(service, "me", message)
         print ('Sent email alert to: %s' % recipient)
