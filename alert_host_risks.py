@@ -3,6 +3,7 @@ import os.path
 import base64
 import pickle
 from datetime import datetime
+import sched, time
 
 from googleapiclient.errors import HttpError
 from googleapiclient.discovery import build
@@ -23,15 +24,15 @@ from email.mime.audio import MIMEAudio
 
 # --- variables ---
 
-MAIL_RECIPIENTS = ['awesomete@gmail.com']
+MAIL_RECIPIENTS = ['tanner@censys.io']
 MAIL_SUBJECT = "[Censys Alerts] New host risks discovered."
 MAIL_BODY = "Attached is a csv of all new host risks that were discovered."
-
-IGNORE_LASTRUN = True
+CHECK_INTERVAL = 1
 
 # If modifying these scopes, delete the file token.json.
 SCOPES = ['https://www.googleapis.com/auth/gmail.compose', 'https://www.googleapis.com/auth/gmail.send']
 
+scheduler = sched.scheduler(time.time, time.sleep)
 
 # --- functions ---
 
@@ -169,15 +170,10 @@ def get_host_risks():
   h = HostsAssets()
 
   lastrun = load_lastrun()
-  if IGNORE_LASTRUN:
-    lastrun = None
-
   if lastrun == None:
-    print("Getting all added host risks.")
-    cursor = e.get_cursor(filters=["HOST_RISK"])
-  else:
-    print("Getting all added host risks since "+lastrun)
-    cursor = e.get_cursor(lastrun, filters=["HOST_RISK"])
+    save_lastrun()
+    load_lastrun()
+  cursor = e.get_cursor(lastrun, filters=["HOST_RISK"])
 
   events = e.get_events(cursor)
   save_lastrun()
@@ -201,19 +197,18 @@ def build_csv(dict):
       writer.writeheader()
       writer.writerows(dict)
 
-
-# --- main thread ---
-
-if __name__ == '__main__':
-
-    # TODO
-    # kick off thread where we check every X minutes for new host risks
-
+def main_loop(sc): 
+    print("Checking for new host risks...")
+    
     # get censys host risks
     host_risks = get_host_risks()
 
-    # TODO check if host risks was populated with data
-    # (if no new data, return)
+    if len(host_risks) == 0:
+      print("No new host risks.")
+      scheduler.enter((CHECK_INTERVAL*60), 1, main_loop, (sc,))
+      return
+    else:
+      print(f"{len(host_risks)} new host risks found.")
 
     # build the csv from the host risks dict
     risks_csv = build_csv(host_risks)
@@ -230,3 +225,13 @@ if __name__ == '__main__':
         #print ('Message: %s' % message)
         send_message(service, "me", message)
         print ('Sent email alert to: %s' % recipient)
+
+    scheduler.enter((CHECK_INTERVAL*60), 1, main_loop, (sc,))
+
+# --- main thread ---
+
+if __name__ == '__main__':
+
+    # create a new scheduler to run the main loop task every X minutes
+    scheduler.enter(0, 1, main_loop, (scheduler,))
+    scheduler.run()
