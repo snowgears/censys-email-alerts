@@ -1,0 +1,6 @@
+# install these using 'python -m pip install --upgrade -r requirements.txt' 
+
+censys
+google-api-python-client
+google-auth-httplib2
+google-auth-oauthlib
