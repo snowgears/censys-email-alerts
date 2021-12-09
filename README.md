@@ -51,3 +51,8 @@ python alert_host_risks.py
 ```
 
 You will be asked to sign in the with a Google account in your browser. Sign in with one of the accounts that you added in **Test Users** in your application and grant it both of the **scopes** we defined *(compose and send)*. It will then successfully grant access and generate a **token.json** in this directory. This is the OAuth refresh token so that you won't have to sign in again until its expiration date is reached.
+
+
+The script is set to run every 60 minutes by default. When new host risks are discovered, an email will be sent to the configured **MAIL_RECIPIENTS** with an attached csv.
+
+![](https://i.imgur.com/r3Nr4Tz.png)
