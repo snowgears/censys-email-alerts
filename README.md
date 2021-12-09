@@ -1,7 +1,21 @@
 # Censys New Host Risks Email Alerts
-Script to showcase email alerts for newly discovered host risks in the [Censys ASM platform](https://censys.io/).
+This script searches every 60 minutes *(by default)* for newly discovered host risks in the [Censys ASM platform](https://censys.io/). If any are found, emails will be sent to all configured recipients with a csv attachment of all newly found risks.
 
-**Steps for getting started:**
+```
+Checking for new host risks...
+No new host risks.
+Checking for new host risks...
+No new host risks.
+Checking for new host risks...
+No new host risks.
+Checking for new host risks...
+11 new host risks found.
+Email we will be sending from: exampleSender@gmail.com
+Sent email alert to: exampleReceiver@example.com
+```
+![](https://i.imgur.com/r3Nr4Tz.png)
+
+# Steps for getting started:
 - Install the libraries in requirements.txt
    - ```pip install --upgrade -r requirements.txt```
 - Set your Censys ASM API key
@@ -14,7 +28,7 @@ Script to showcase email alerts for newly discovered host risks in the [Censys A
    - **CHECK_INTERVAL** - how often to check for new host risks *(in minutes)*
 - Generate a Google API credential *(steps below)*
 
-**Generate a Gmail API credential:**
+## Generate a Gmail API credential:
 
    This script requires the use of a Gmail account to send emails on its behalf. To do this, we will need to generate a json credential for that Google account.
    - Go to https://console.developers.google.com
@@ -45,7 +59,7 @@ Script to showcase email alerts for newly discovered host risks in the [Censys A
       - move it to this directory
    
 
-Now just run the script:
+## Now just run the script:
 ``` 
 python alert_host_risks.py
 ```
@@ -54,5 +68,3 @@ You will be asked to sign in the with a Google account in your browser. Sign in 
 
 
 The script is set to run every 60 minutes by default. When new host risks are discovered, an email will be sent to the configured **MAIL_RECIPIENTS** with an attached csv.
-
-![](https://i.imgur.com/r3Nr4Tz.png)
