@@ -30,8 +30,8 @@ Script to showcase email alerts for newly discovered host risks in the [Censys A
          - *https://www.googleapis.com/auth/gmail.send*
       - On the next page in **Test Users**, add your own gmail address
       - Go back to the dashboard
-   <br/>
-   <br/>
+
+
    - **Create Credentials**, by going to "Credentials" within your project
 
    - ![](https://i.imgur.com/EI7DgTe.png)
