@@ -4,6 +4,7 @@ import base64
 import pickle
 from datetime import datetime
 import sched, time
+import logging
 
 from googleapiclient.errors import HttpError
 from googleapiclient.discovery import build
@@ -12,7 +13,6 @@ from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 
 from censys.asm import Events, HostsAssets
-#from censys.common.exceptions import CensysHostNotFoundException
 
 import csv
 import mimetypes
@@ -27,7 +27,7 @@ from email.mime.audio import MIMEAudio
 MAIL_RECIPIENTS = ['tanner@censys.io']
 MAIL_SUBJECT = "[Censys Alerts] New host risks discovered."
 MAIL_BODY = "Attached is a csv of all new host risks that were discovered."
-CHECK_INTERVAL = 1
+CHECK_INTERVAL = 60
 
 # If modifying these scopes, delete the file token.json.
 SCOPES = ['https://www.googleapis.com/auth/gmail.compose', 'https://www.googleapis.com/auth/gmail.send']
@@ -38,17 +38,22 @@ scheduler = sched.scheduler(time.time, time.sleep)
 
 def load_lastrun():
     try:
+        ct = None
         with open ('lastrun', 'rb') as fp:
-            return pickle.load(fp)
+            ct = pickle.load(fp)
+            fp.close
     except FileNotFoundError:
         return None
+    return ct
 
 
 def save_lastrun():
+    ct = datetime.utcnow()
+    ct_formatted = ct.strftime('%Y-%m-%dT%H:%M:%SZ')
     with open('lastrun', 'wb') as fp:
-        ct = datetime.now()
-        ct_formatted = ct.strftime('%Y-%m-%dT%H:%M:%SZ')
         pickle.dump(ct_formatted, fp)
+        fp.close
+    return ct_formatted
 
 def get_gmail_service():
     creds = None
@@ -160,10 +165,10 @@ def send_message(service, user_id, message):
   try:
     message = (service.users().messages().send(userId=user_id, body=message)
                .execute())
-    print ('Message Id: %s' % message['id'])
+    #print ('Message Id: %s' % message['id'])
     return message
   except HttpError as error:
-    print ('An error occurred: %s' % error)
+    logging.error('An error occurred: %s' % error)
 
 def get_host_risks():
   e = Events()
@@ -171,10 +176,9 @@ def get_host_risks():
 
   lastrun = load_lastrun()
   if lastrun == None:
-    save_lastrun()
-    load_lastrun()
-  cursor = e.get_cursor(lastrun, filters=["HOST_RISK"])
+    lastrun = save_lastrun()
 
+  cursor = e.get_cursor(lastrun, filters=["HOST_RISK"])
   events = e.get_events(cursor)
   save_lastrun()
 
@@ -182,7 +186,6 @@ def get_host_risks():
   for event in events:
     # only show logbook events with the 'add' tag
     if event["operation"] == "ADD":
-        #print(event)
         host_risk = {}
         host_risk["timestamp"] = event["timestamp"]
         host_risk["ip_address"] = event["entity"]["ipAddress"]
@@ -198,39 +201,40 @@ def build_csv(dict):
       writer.writerows(dict)
 
 def main_loop(sc): 
-    print("Checking for new host risks...")
+    logging.info("Checking for new host risks.")
     
     # get censys host risks
     host_risks = get_host_risks()
 
     if len(host_risks) == 0:
-      print("No new host risks.")
+      logging.info("No new host risks.")
       scheduler.enter((CHECK_INTERVAL*60), 1, main_loop, (sc,))
       return
     else:
-      print(f"{len(host_risks)} new host risks found.")
+      logging.info(f"{len(host_risks)} new host risks found.")
 
     # build the csv from the host risks dict
-    risks_csv = build_csv(host_risks)
+    build_csv(host_risks)
 
     service = get_gmail_service()
 
     # get the google profile of the user that gave us their permission to send emails on their behalf
     profile = service.users().getProfile(userId='me').execute()
-    print ('Email we will be sending from: %s' % profile['emailAddress'])
+    logging.info('Email address sending from: %s' % profile['emailAddress'])
 
     for recipient in MAIL_RECIPIENTS:
-        #message = create_message(profile['emailAddress'], recipient, MAIL_SUBJECT, MAIL_BODY)
         message = create_message_with_attachment(profile['emailAddress'], recipient, MAIL_SUBJECT, MAIL_BODY, 'host-risks.csv')
-        #print ('Message: %s' % message)
         send_message(service, "me", message)
-        print ('Sent email alert to: %s' % recipient)
+        logging.info('Sent email alert to: %s' % recipient)
 
     scheduler.enter((CHECK_INTERVAL*60), 1, main_loop, (sc,))
 
 # --- main thread ---
 
 if __name__ == '__main__':
+
+    #set the logging config
+    logging.basicConfig(handlers=[logging.FileHandler('log_alerts.log', 'a+', 'utf-8')], level=logging.INFO, format='%(asctime)s: %(message)s')
 
     # create a new scheduler to run the main loop task every X minutes
     scheduler.enter(0, 1, main_loop, (scheduler,))
