@@ -26,6 +26,7 @@ Sent email alert to: exampleReceiver@example.com
    - **MAIL_SUBJECT** - the subject line of the alert email
    - **MAIL_BODY** - the body of the alert email
    - **CHECK_INTERVAL** - how often to check for new host risks *(in minutes)*
+   - **RISK_SEVERITY_LOGLEVEL** - choose the minimum risk level you want to be alerted on. Options are 1, 2, 3, 4. (low, medium, high, critical)
 - Generate a Google API credential *(steps below)*
 
 ## Generate a Gmail API credential:

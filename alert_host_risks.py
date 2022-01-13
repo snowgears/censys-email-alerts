@@ -28,6 +28,7 @@ MAIL_RECIPIENTS = ['tanner@censys.io']
 MAIL_SUBJECT = "[Censys Alerts] New host risks discovered."
 MAIL_BODY = "Attached is a csv of all new host risks that were discovered."
 CHECK_INTERVAL = 60
+RISK_SEVERITY_LOGLEVEL = 1
 
 # If modifying these scopes, delete the file token.json.
 SCOPES = ['https://www.googleapis.com/auth/gmail.compose', 'https://www.googleapis.com/auth/gmail.send']
@@ -54,6 +55,16 @@ def save_lastrun():
         pickle.dump(ct_formatted, fp)
         fp.close
     return ct_formatted
+
+def include_risk(severity):
+    risk_level = 1
+    if(severity == "medium"):
+        risk_level = 2
+    if(severity == "high"):
+        risk_level = 3
+    if(severity == "critical"):
+        risk_level = 4
+    return risk_level >= RISK_SEVERITY_LOGLEVEL
 
 def get_gmail_service():
     creds = None
@@ -185,7 +196,7 @@ def get_host_risks():
   host_risks = []
   for event in events:
     # only show logbook events with the 'add' tag
-    if event["operation"] == "ADD":
+    if event["operation"] == "ADD" and include_risk(event["data"]["severity"]):
         host_risk = {}
         host_risk["timestamp"] = event["timestamp"]
         host_risk["ip_address"] = event["entity"]["ipAddress"]
