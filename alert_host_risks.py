@@ -203,13 +203,14 @@ def get_host_risks():
         host_risk["timestamp"] = event["timestamp"]
         host_risk["ip_address"] = event["entity"]["ipAddress"]
         host_risk["risk_title"] = event["data"]["title"]
+        host_risk["severity"] = event["data"]["severity"]
         host_risks.append(host_risk)
 
   return host_risks
 
 def build_csv(dict):
     with open('host-risks.csv', 'w') as csvfile:
-      writer = csv.DictWriter(csvfile, fieldnames=["timestamp", "ip_address", "risk_title"])
+      writer = csv.DictWriter(csvfile, fieldnames=["timestamp", "ip_address", "risk_title", "severity"])
       writer.writeheader()
       writer.writerows(dict)
 
