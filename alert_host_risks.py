@@ -1,12 +1,14 @@
 from __future__ import print_function
-import os.path
+import os
 import base64
 import pickle
 from datetime import datetime
 import sched, time
 import logging
+from pathlib import Path
 
 import win32com.client as win32
+from pywintypes import com_error
 
 from censys.asm import Events, HostsAssets
 
@@ -20,7 +22,7 @@ from email.mime.audio import MIMEAudio
 
 # --- variables ---
 
-MAIL_RECIPIENTS = "tanner@censys.io"
+MAIL_RECIPIENTS = "example@example.com"
 MAIL_SUBJECT = "[Censys Alerts] New host risks discovered."
 MAIL_BODY = "Attached is a csv of all new host risks that were discovered."
 CHECK_INTERVAL = 60
@@ -62,6 +64,7 @@ def include_risk(severity):
 def create_and_send_message():
   
   try:
+    logging.info('Attempting to send email from local Outlook account...')
     outlook = win32.Dispatch('outlook.application')
     mail = outlook.CreateItem(0)
     mail.To = MAIL_RECIPIENTS
@@ -69,13 +72,12 @@ def create_and_send_message():
     mail.Body = MAIL_BODY
     #mail.HTMLBody = '<h2>HTML Message body</h2>' #this field is optional
 
-    # To attach a file to the email (optional):
-    attachment  = "host-risks.csv"
-    mail.Attachments.Add(attachment)
+    csv_path = Path("host-risks.csv").resolve()
+    mail.Attachments.Add(f'{csv_path}')
 
     mail.Send()
-  except:
-    logging.error('An error occurred while sending')
+  except com_error as error:
+    logging.error(f'An error occurred while sending: {error}')
 
 def get_host_risks():
   e = Events()
@@ -127,7 +129,7 @@ def main_loop(sc):
     build_csv(host_risks)
 
     message = create_and_send_message()
-    logging.info('Sent email alert to: ' % MAIL_RECIPIENTS)
+    logging.info(f'Sent email alert to: {MAIL_RECIPIENTS}')
 
     scheduler.enter((CHECK_INTERVAL*60), 1, main_loop, (sc,))
 
